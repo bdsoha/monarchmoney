@@ -10,7 +10,6 @@ from typing import Any, Dict, List, Optional, Union
 
 import oathtool
 from aiohttp import ClientSession, FormData
-from aiohttp.client import DEFAULT_TIMEOUT
 from gql import Client, gql
 from gql.transport.aiohttp import AIOHTTPTransport
 from graphql import DocumentNode
@@ -61,6 +60,7 @@ class MonarchMoney(object):
         session_file: str = SESSION_FILE,
         timeout: int = 10,
         token: Optional[str] = None,
+        device_uuid: Optional[str] = None,
     ) -> None:
         self._headers = {
             "Accept": "application/json",
@@ -70,6 +70,9 @@ class MonarchMoney(object):
         }
         if token:
             self._headers["Authorization"] = f"Token {token}"
+
+        if device_uuid:
+            self._headers["Device-UUID"] = device_uuid
 
         self._session_file = session_file
         self._token = token
