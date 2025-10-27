@@ -38,6 +38,10 @@ class MonarchMoneyEndpoints(object):
     def getAccountBalanceHistoryUploadEndpoint(cls) -> str:
         return cls.BASE_URL + "/account-balance-history/upload/"
 
+    @classmethod
+    def getStatementsUploadEndpoint(cls) -> str:
+        return cls.BASE_URL + "/statements/upload-async/"
+
 
 class RequireMFAException(Exception):
     pass
