@@ -2676,18 +2676,34 @@ class MonarchMoney(object):
             graphql_query=query,
         )
 
-    async def upload_account_statement(self, account_id: str) -> str:
+    async def upload_account_statement(
+        self,
+        account_id: str,
+        csv_content: str,
+        skip_duplicates: bool = True,
+        update_balance: bool = True,
+    ) -> str:
         """
         Uploads account statements csv for a given account.
 
         Returns the session key to be used for status updates.
 
         :param account_id: The account ID to apply the history to.
+        :param csv_content: CSV representation of the transactions.
+        :param skip_duplicates: Skip duplicate transaction checking.
+        :param update_balance: Update account balance after import.
         """
+        if not account_id or not csv_content:
+            raise RequestFailedException("account_id and csv_content cannot be empty")
+
+        filename = "transactions.csv"
+        form = FormData()
+        form.add_field("file", csv_content, filename=filename, content_type="text/csv")
+
         async with ClientSession(headers=self._headers) as session:
             resp = await session.post(
                 MonarchMoneyEndpoints.getStatementsUploadEndpoint(),
-                json=form,
+                data=form,
             )
             if resp.status != 200:
                 raise RequestFailedException(f"HTTP Code {resp.status}: {resp.reason}")
@@ -2734,8 +2750,13 @@ class MonarchMoney(object):
 
             return session_key
 
-    async def get_upload_statement_status(self, session_key: str) -> bool:
+    async def get_upload_statement_status(self, session_key: str) -> Dict[str, Any]:
         """
+        Get the status of an uploaded statement session.
+
+        :param session_key: The session key returned from upload_account_statement.
+        :return: Dictionary containing session status, error message (if any),
+            and uploaded statement details including transaction count.
         """
         if not session_key:
             raise RequestFailedException("session_key cannot be empty")
@@ -2759,16 +2780,11 @@ class MonarchMoney(object):
 
         variables = {"sessionKey": session_key}
 
-        response = await self.gql_call(
+        return await self.gql_call(
             operation="GetUploadStatementSession",
             graphql_query=query,
             variables=variables,
         )
-
-        # @todo: review response
-
-        return True
-
 
     async def upload_account_balance_history(
         self, account_id: str, csv_content: str
