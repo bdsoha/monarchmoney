@@ -1153,7 +1153,7 @@ class MonarchMoney(object):
                 __typename
               }
             }
-            
+
             fragment BudgetDataMonthlyAmountsFields on BudgetMonthlyAmounts {
               month
               plannedCashFlowAmount
@@ -1166,7 +1166,7 @@ class MonarchMoney(object):
               rolloverTargetAmount
               __typename
             }
-            
+
             fragment BudgetMonthlyAmountsByCategoryFields on BudgetCategoryMonthlyAmounts {
               category {
                 id
@@ -1178,7 +1178,7 @@ class MonarchMoney(object):
               }
               __typename
             }
-            
+
             fragment BudgetMonthlyAmountsByCategoryGroupFields on BudgetCategoryGroupMonthlyAmounts {
               categoryGroup {
                 id
@@ -1190,7 +1190,7 @@ class MonarchMoney(object):
               }
               __typename
             }
-            
+
             fragment BudgetMonthlyAmountsForFlexExpenseFields on BudgetFlexMonthlyAmounts {
               budgetVariability
               monthlyAmounts {
@@ -1199,7 +1199,7 @@ class MonarchMoney(object):
               }
               __typename
             }
-            
+
             fragment BudgetDataTotalsByMonthFields on BudgetTotals {
               actualAmount
               plannedAmount
@@ -1207,7 +1207,7 @@ class MonarchMoney(object):
               remainingAmount
               __typename
             }
-            
+
             fragment BudgetTotalsByMonthFields on BudgetMonthTotals {
               month
               totalIncome {
@@ -1232,7 +1232,7 @@ class MonarchMoney(object):
               }
               __typename
             }
-            
+
             fragment BudgetRolloverPeriodFields on BudgetRolloverPeriod {
               id
               startMonth
@@ -1243,7 +1243,7 @@ class MonarchMoney(object):
               type
               __typename
             }
-            
+
             fragment BudgetCategoryFields on Category {
               id
               name
@@ -1266,7 +1266,7 @@ class MonarchMoney(object):
               }
               __typename
             }
-            
+
             fragment BudgetDataFields on BudgetData {
               monthlyAmountsByCategory {
                 ...BudgetMonthlyAmountsByCategoryFields
@@ -1286,7 +1286,7 @@ class MonarchMoney(object):
               }
               __typename
             }
-            
+
             fragment BudgetCategoryGroupFields on CategoryGroup {
               id
               name
@@ -1311,7 +1311,7 @@ class MonarchMoney(object):
               }
               __typename
             }
-            
+
             fragment BudgetDataGoalsV2Fields on GoalV2 {
               id
               name
@@ -1332,7 +1332,7 @@ class MonarchMoney(object):
                 __typename
               }
               __typename
-            }            
+            }
             """
         )
 
@@ -1492,7 +1492,7 @@ class MonarchMoney(object):
               __typename
             }
           }
-    
+
           fragment TransactionOverviewFields on Transaction {
             id
             amount
@@ -1667,7 +1667,7 @@ class MonarchMoney(object):
               __typename
             }
           }
-  
+
           fragment PayloadErrorFields on PayloadError {
             fieldErrors {
               field
@@ -2676,6 +2676,100 @@ class MonarchMoney(object):
             graphql_query=query,
         )
 
+    async def upload_account_statement(self, account_id: str) -> str:
+        """
+        Uploads account statements csv for a given account.
+
+        Returns the session key to be used for status updates.
+
+        :param account_id: The account ID to apply the history to.
+        """
+        async with ClientSession(headers=self._headers) as session:
+            resp = await session.post(
+                MonarchMoneyEndpoints.getStatementsUploadEndpoint(),
+                json=form,
+            )
+            if resp.status != 200:
+                raise RequestFailedException(f"HTTP Code {resp.status}: {resp.reason}")
+
+            response = await resp.json()
+            session_key = response["session_key"]
+
+            variables = {
+                "input": {
+                    "parserName": "monarch_csv",
+                    "sessionKey": session_key,
+                    "accountId": account_id,
+                    "skipCheckForDuplicates": skip_duplicates,
+                    "shouldUpdateBalance": update_balance,
+                    "allowWarnings": True,
+                }
+            }
+
+            query = gql("""
+                mutation Web_ParseUploadStatementSession($input: ParseStatementInput!) {
+                  parseUploadStatementSession(input: $input) {
+                    uploadStatementSession {
+                      sessionKey
+                      status
+                      errorMessage
+                      skipCheckForDuplicates
+                      uploadedStatement {
+                        id
+                        transactionCount
+                        __typename
+                      }
+                      __typename
+                    }
+                    __typename
+                  }
+                }
+            """)
+
+            await self.gql_call(
+                operation="Web_ParseUploadStatementSession",
+                graphql_query=query,
+                variables=variables,
+            )
+
+            return session_key
+
+    async def get_upload_statement_status(self, session_key: str) -> bool:
+        """
+        """
+        if not session_key:
+            raise RequestFailedException("session_key cannot be empty")
+
+        query = gql("""
+            query GetUploadStatementSession($sessionKey: String!) {
+              uploadStatementSession(sessionKey: $sessionKey) {
+                sessionKey
+                status
+                errorMessage
+                skipCheckForDuplicates
+                uploadedStatement {
+                  id
+                  transactionCount
+                  __typename
+                }
+                __typename
+              }
+            }
+            """)
+
+        variables = {"sessionKey": session_key}
+
+        response = await self.gql_call(
+            operation="GetUploadStatementSession",
+            graphql_query=query,
+            variables=variables,
+        )
+
+        # @todo: review response
+
+        return True
+
+
     async def upload_account_balance_history(
         self, account_id: str, csv_content: str
     ) -> None:
@@ -2800,7 +2894,7 @@ class MonarchMoney(object):
         Makes a GraphQL call to Monarch Money's API.
         """
         return await self._get_graphql_client().execute_async(
-            document=graphql_query, operation_name=operation, variable_values=variables
+            request=graphql_query, variable_values=variables, operation_name=operation
         )
 
     def save_session(self, filename: Optional[str] = None) -> None:
