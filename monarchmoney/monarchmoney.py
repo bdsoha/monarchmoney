@@ -2698,9 +2698,10 @@ class MonarchMoney(object):
 
         filename = "transactions.csv"
         form = FormData()
-        form.add_field("file", csv_content, filename=filename, content_type="text/csv")
+        form.add_field("file", csv_content.encode("utf-8"), filename=filename, content_type="text/csv")
+        headers = {k: v for k, v in self._headers.items() if k.lower() != 'content-type'}
 
-        async with ClientSession(headers=self._headers) as session:
+        async with ClientSession(headers=headers) as session:
             resp = await session.post(
                 MonarchMoneyEndpoints.getStatementsUploadEndpoint(),
                 data=form,
