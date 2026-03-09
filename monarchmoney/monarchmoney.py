@@ -2764,6 +2764,32 @@ class MonarchMoney(object):
                 variables=variables,
             )
 
+            # Poll until parsing completes, then call parse again to trigger balance update
+            for _ in range(30):
+                status = await self.get_upload_statement_status(session_key)
+                session = status["uploadStatementSession"]
+
+                if session["status"] == "errored":
+                    raise RequestFailedException(
+                        f"Statement upload failed: {session['errorMessage']}"
+                    )
+
+                if session["status"] == "completed":
+                    break
+
+                await asyncio.sleep(2)
+            else:
+                raise RequestFailedException(
+                    f"Statement upload timed out for account {account_id}"
+                )
+
+            # Second parse call triggers balance update (mirrors Monarch web UI behavior)
+            await self.gql_call(
+                operation="Web_ParseUploadStatementSession",
+                graphql_query=query,
+                variables=variables,
+            )
+
             return session_key
 
     async def get_upload_statement_status(self, session_key: str) -> Dict[str, Any]:
