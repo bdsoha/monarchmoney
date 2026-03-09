@@ -2683,8 +2683,12 @@ class MonarchMoney(object):
         self,
         account_id: str,
         csv_content: str,
-        skip_duplicates: bool = True,
-        update_balance: bool = True,
+        column_mapping: dict,
+        category_mapping: dict | None = None,
+        tag_mapping: dict | None = None,
+        import_priority: str = "all_transactions",
+        skip_duplicates: bool = False,
+        update_balance: bool = False,
     ) -> str:
         """
         Uploads account statements csv for a given account.
@@ -2693,6 +2697,10 @@ class MonarchMoney(object):
 
         :param account_id: The account ID to apply the history to.
         :param csv_content: CSV representation of the transactions.
+        :param column_mapping: Mapping of column purposes to 0-based CSV column indices.
+        :param category_mapping: Optional category mapping dict.
+        :param tag_mapping: Optional tag mapping dict.
+        :param import_priority: Import priority strategy.
         :param skip_duplicates: Skip duplicate transaction checking.
         :param update_balance: Update account balance after import.
         """
@@ -2717,9 +2725,13 @@ class MonarchMoney(object):
 
             variables = {
                 "input": {
-                    "parserName": "monarch_csv",
+                    "parserName": "mint_csv",
                     "sessionKey": session_key,
                     "accountId": account_id,
+                    "importPriority": import_priority,
+                    "columnMapping": json.dumps(column_mapping),
+                    "categoryMapping": json.dumps(category_mapping or {}),
+                    "tagMapping": json.dumps(tag_mapping or {}),
                     "skipCheckForDuplicates": skip_duplicates,
                     "shouldUpdateBalance": update_balance,
                     "allowWarnings": True,
